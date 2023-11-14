@@ -26,8 +26,8 @@ A observação é um np.array na forma (8, 1, 1), valores correspondentes as lei
 | 05  | NE | 0  | 1 | Sim ||
 | 06  | SO | 0  | 1 | Sim ||
 | 07  | SE | 0  | 1 | Sim ||
-| 11  | e_go | -inf  | inf  | Não ||
-| 21  | alpha_go | -np.pi  | np.pi  | Não ||
+| 1  | e_go | -inf  | inf  | Não ||
+| 2  | alpha_go | -np.pi  | np.pi  | Não ||
 
 ## Recompensas
 A recompensa por ação leva em consideração os seguintes criterios
