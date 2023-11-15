@@ -18,16 +18,16 @@ A observação é um np.array na forma (8, 1, 1), valores correspondentes as lei
 
 | Index. | Observação | Mínimo | Máx. | Sensor |
 |-------------|-------------|-------------|-------------|-------------|
-| 00  | N | 0  | 1 | Sim |
-| 01  | S | 0  | 1 | Sim |
-| 02  | L | 0  | 1 | Sim ||
-| 03  | O | 0  | 1 | Sim ||
-| 04  | NO | 0  | 1 | Sim ||
-| 05  | NE | 0  | 1 | Sim ||
-| 06  | SO | 0  | 1 | Sim ||
-| 07  | SE | 0  | 1 | Sim ||
-| 1  | e_go | -inf  | inf  | Não ||
-| 2  | alpha_go | -np.pi  | np.pi  | Não ||
+| 0  | N | 0  | 1 | Sim |
+| 1  | S | 0  | 1 | Sim |
+| 2  | L | 0  | 1 | Sim ||
+| 3  | O | 0  | 1 | Sim ||
+| 4  | NO | 0  | 1 | Sim ||
+| 5  | NE | 0  | 1 | Sim ||
+| 6  | SO | 0  | 1 | Sim ||
+| 7  | SE | 0  | 1 | Sim ||
+| 8  | e_go | -inf  | inf  | Não ||
+| 9  | alpha_go | -np.pi  | np.pi  | Não ||
 
 ## Recompensas
 A recompensa por ação leva em consideração os seguintes criterios

@@ -17,7 +17,7 @@ class robot_goal:
         self.__initialize_simulation()
         #Inicializar ambiente
         self.id = 0
-
+#Conxeção Coppelia------------------------------------------------------
     def __initialize_simulation(self):
         self.client = RemoteAPIClient()
         self.sim    = self.client.getObject('sim')
@@ -34,9 +34,9 @@ class robot_goal:
         self.objectOrientation = self.sim.getObjectOrientation(self.PioneerP3DX,-1)
         self.objectQuaternion = self.sim.getObjectQuaternion(self.PioneerP3DX,-1)
         self.client.setStepping(True)
-
+#Controle do estado do Ambiente------------------------------------------
     def __setvariables(self):
-        num_point = 200
+        num_point = 10000
         self.tf = num_point * self.dt
         self.t  = np.zeros(num_point+1)
         self.xp = np.zeros(num_point+1)
@@ -44,23 +44,70 @@ class robot_goal:
         self.fp = np.zeros(num_point+1)
         self.up = np.zeros(num_point+1)
         self.om = np.zeros(num_point+1)
+
+    def __getSensorvalues_and_positions(self):
+        P3DXPos = self.sim.getObjectPosition(self.PioneerP3DX,-1)
+        P3DXOri = self.sim.getObjectOrientation(self.PioneerP3DX,-1)
+        self.ultrasonicSensor_value = np.zeros(16, dtype=np.float32)
+        for i in range(16):
+            self.ultrasonicSensor_value[i] = self.sim.readProximitySensor(self.ultrasonicSensor_list[i],-1)[1]
+        self.xp[self.id]=P3DXPos[0]
+        self.yp[self.id]=P3DXPos[1]
+        self.fp[self.id]=P3DXOri[2]
+        GoalPos=self.sim.getObjectPosition(self.Goal,-1)
+        GoalOri=self.sim.getObjectOrientation(self.Goal,-1)
+        self.goal_x = GoalPos[0]
+        self.goal_y = GoalPos[1]
+        self.goal_orientation = GoalOri[2]
     
+    def __minimo(self,a,b):
+        if a<b:
+            aux = a
+        else:
+            aux = b
+        if aux == 0:
+            return 1
+        else:
+            return aux   
+        
+    def __getErros(self):
+        self.e_global = np.sqrt((self.xp[self.id] - self.goal_x)**2 + (self.yp[self.id] - self.goal_y)**2)
+        self.alpha_global = np.arctan2(self.goal_y - self.yp[self.id], self.goal_x - self.xp[self.id]) - self.fp[self.id]
+        self.theta_global = self.fp[self.id] - self.goal_orientation
+
+    def __state_creator(self):
+        # Obtenção de posições e valores dos sensores
+        self.__getSensorvalues_and_positions()
+        # Cálculo de e, alpha e theta
+        self.__getErros()
+        state = [] 
+        sensor = [self.__minimo(self.ultrasonicSensor_value[3], self.ultrasonicSensor_value[4]),  #N
+        self.__minimo(self.ultrasonicSensor_value[12], self.ultrasonicSensor_value[11]),          #S
+        self.__minimo(self.ultrasonicSensor_value[7], self.ultrasonicSensor_value[8]),            #L
+        self.__minimo(self.ultrasonicSensor_value[0], self.ultrasonicSensor_value[15]),           #O
+        self.__minimo(self.ultrasonicSensor_value[1], self.ultrasonicSensor_value[2]),            #NO
+        self.__minimo(self.ultrasonicSensor_value[5], self.ultrasonicSensor_value[6]),            #NE 
+        self.__minimo(self.ultrasonicSensor_value[13], self.ultrasonicSensor_value[14]),          #SO
+        self.__minimo(self.ultrasonicSensor_value[10], self.ultrasonicSensor_value[9])]           #SE
+        for data in sensor:
+            state.append(data)
+        state.append(self.e_global)
+        state.append(self.alpha_global)
+        return np.array(state)  
+        
     def __setp3dXpostion(self):
         pass
 
     def __setgoalposition(self):
         pass
 
-    def getobservacao(self):
-        pass         
-
     def reset(self):
         self.id = 0
         self.__setvariables()
         self.__setp3dXpostion() #Falta Criar
         self.__setgoalposition() #Falta Criar
-
-
+        return self.__state_creator()
+#Contre da ação aplicada------------------------------------------------  
     def __drive_p3dx(self, v,w):
         vR=(2*v+w*self.L)/2/self.R
         vL=(2*v-w*self.L)/2/self.R
@@ -70,36 +117,13 @@ class robot_goal:
         v = self.gamma * np.cos(alpha) * e
         omega = self.k * alpha + self.gamma * (np.cos(alpha) * np.sin(alpha) / alpha) * (alpha + self.h * theta)  
         return v, omega 
-    
-    def minimo(self,a,b):
-        if a<b:
-            aux = a
-        else:
-            aux = b
 
-        if aux == 0:
-            return 1
-        else:
-            return aux   
-    
-    def __state_creator(self, ultrasonicSensor_value, e, alpha):
-        state = [] 
-        
-        sensor = [self.minimo(ultrasonicSensor_value[3], ultrasonicSensor_value[4]),  #N
-        self.minimo(ultrasonicSensor_value[12], ultrasonicSensor_value[11]), #S
-        self.minimo(ultrasonicSensor_value[7], ultrasonicSensor_value[8]),   #L
-        self.minimo(ultrasonicSensor_value[0], ultrasonicSensor_value[15]),  #O
-        self.minimo(ultrasonicSensor_value[1], ultrasonicSensor_value[2]),   #NO
-        self.minimo(ultrasonicSensor_value[5], ultrasonicSensor_value[6]),   #NE 
-        self.minimo(ultrasonicSensor_value[13], ultrasonicSensor_value[14]), #SO
-        self.minimo(ultrasonicSensor_value[10], ultrasonicSensor_value[9])]  #SE
-        state.append(sensor)
-        state.append(e)
-        state.append(alpha)
-        return state   
-    
+    def __conversor_alpha(self, action):
+        alpha_list = [np.pi/2, 0.00001, -np.pi/2]
+        return alpha_list[action]
+#Lógica de recompensa---------------------------------------------------  
     def __calcular_recompensa(self, state, alcançou_objetivo):
-    # Parâmetros ajustáveis
+        # Parâmetros ajustáveis
         peso_posicao = 1.0
         peso_orientacao = 0.5
         peso_colisao = -0.1
@@ -107,15 +131,15 @@ class robot_goal:
         distancia_segura = 0.2  # Ajuste conforme necessário
 
         # Componente de recompensa com base no erro de posição
-        recompensa_posicao = 1.0 / (1.0 + state[1])
+        recompensa_posicao = 1.0 / (1.0 + state[8])
 
         # Componente de recompensa com base no erro de orientação
-        recompensa_orientacao = 1.0 / (1.0 + state[2])
+        recompensa_orientacao = 1.0 / (1.0 + state[9])
 
         # Componente de penalidade por colisão
         recompensa_colisao = 0.0
-        for leitura_sensor in state[0]:
-            if leitura_sensor < distancia_segura:
+        for i in range(8):
+            if state[i] < distancia_segura:
                 recompensa_colisao += peso_colisao
 
         # Componente de recompensa pela conclusão da tarefa
@@ -132,42 +156,24 @@ class robot_goal:
             peso_conclusao * recompensa_conclusao
         )
         return recompensa_total
-    
+#Passo de simulação--------------------------------------------------------    
     def step(self, action):
         done = False
         # Passagem de tempo
         ts = self.sim.getSimulationTime()
         self.id = self.id + 1
         self.t[self.id]=ts
-        # Obtenção de posições e valores dos sensores
-        P3DXPos = self.sim.getObjectPosition(self.PioneerP3DX,-1)
-        P3DXOri = self.sim.getObjectOrientation(self.PioneerP3DX,-1)
-        ultrasonicSensor_value = np.zeros(16, dtype=np.float32)
-        for i in range(16):
-            ultrasonicSensor_value[i] = self.sim.readProximitySensor(self.ultrasonicSensor_list[i],-1)[1]
-        self.xp[self.id]=P3DXPos[0]
-        self.yp[self.id]=P3DXPos[1]
-        self.fp[self.id]=P3DXOri[2]
-        GoalPos=self.sim.getObjectPosition(self.Goal,-1)
-        GoalOri=self.sim.getObjectOrientation(self.Goal,-1)
-        goal_x = GoalPos[0]
-        goal_y = GoalPos[1]
-        goal_orientation = GoalOri[2]
-        # Cálculo de e, alpha e theta
-        e_global = np.sqrt((self.xp[self.id] - goal_x)**2 + (self.yp[self.id] - goal_y)**2)
-        alpha_global = np.arctan2(goal_y - self.yp[self.id], goal_x - self.xp[self.id]) - self.fp[self.id]
-        theta_global = self.fp[self.id] - goal_orientation
         # Criação de estado e cálculo da ação de controle
-        observation = self.__state_creator(ultrasonicSensor_value, e_global, alpha_global)
+        observation = self.__state_creator()
         # Cálculo de velocidades linear e angular
-        v, omega = self.__getLyapunov(action[0], action[1], theta_global)
+        v, omega = self.__getLyapunov(0.9, self.__conversor_alpha(action), self.theta_global)
         # Aplicação de velocidades aos motores
-        vR,vL = self.__drive_p3dx(v,omega)
+        vR,vL = self.__drive_p3dx(0.2,omega)
         self.sim.setJointTargetVelocity(self.leftMotor,vL)
         self.sim.setJointTargetVelocity(self.rightMotor,vR)
         self.client.step()
         # Verificação de condição de término
-        if ts >= self.tf or (e_global < 0.1 and alpha_global<0.9):
+        if ts >= self.tf or (self.e_global < 0.1 and self.alpha_global<0.9):
             done = True  
         #Calculo de recompensa 
         reward = self.__calcular_recompensa(observation, done)        
