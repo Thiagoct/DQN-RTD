@@ -1,0 +1,9 @@
+- Adição de função de checagem de eventos V
+	- Colição V
+	- Chegar ao goal V
+- Adicionar colição como evento que finaliza o epi V
+- Adicionar Chegada ao goal como evento que finaliza o epi V
+- Adicionar logica que passos máximos para fim de epi V
+- Alteração função de recompeça V
+- Adicionar Ator-Critico
+

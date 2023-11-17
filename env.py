@@ -13,11 +13,12 @@ class robot_goal:
         self.gamma = 0.5
         self.k = 0.5
         self.h = 1 
+        self.collision_distance = 0.1
         #Inicialização do simulador e objetos
         self.__initialize_simulation()
         #Inicializar ambiente
         self.id = 0
-#Conxeção Coppelia------------------------------------------------------
+#Conexeção Coppelia------------------------------------------------------
     def __initialize_simulation(self):
         self.client = RemoteAPIClient()
         self.sim    = self.client.getObject('sim')
@@ -122,41 +123,36 @@ class robot_goal:
         alpha_list = [np.pi/2, 0.00001, -np.pi/2]
         return alpha_list[action]
 #Lógica de recompensa---------------------------------------------------  
-    def __calcular_recompensa(self, state, alcançou_objetivo):
-        # Parâmetros ajustáveis
-        peso_posicao = 1.0
-        peso_orientacao = 0.5
-        peso_colisao = -0.1
-        peso_conclusao = 10.0
-        distancia_segura = 0.2  # Ajuste conforme necessário
-
-        # Componente de recompensa com base no erro de posição
-        recompensa_posicao = 1.0 / (1.0 + state[8])
-
-        # Componente de recompensa com base no erro de orientação
-        recompensa_orientacao = 1.0 / (1.0 + state[9])
-
-        # Componente de penalidade por colisão
-        recompensa_colisao = 0.0
-        for i in range(8):
-            if state[i] < distancia_segura:
-                recompensa_colisao += peso_colisao
-
-        # Componente de recompensa pela conclusão da tarefa
-        if alcançou_objetivo:
-            recompensa_conclusao = peso_conclusao
+    def __calcular_recompensa(self, collision, reach_goal):
+        if collision:
+            reward = -1
+        elif reach_goal:
+            reward = 1
         else:
-            recompensa_conclusao = 0.0
-
-        # Combinação de todas as componentes de recompensa
-        recompensa_total = (
-            peso_posicao * recompensa_posicao +
-            peso_orientacao * recompensa_orientacao +
-            peso_colisao * recompensa_colisao +
-            peso_conclusao * recompensa_conclusao
-        )
-        return recompensa_total
-#Passo de simulação--------------------------------------------------------    
+            reward = 0.2-self.e_global*0.001         
+        return reward
+#Passo de simulação--------------------------------------------------------  
+# Detector de colisão
+    def __event_collision(self):
+        sensors = self.__state_creator()[0:7]
+        collision = False
+        for sensor in sensors:
+            if self.collision_distance > sensor:
+                collision = True     
+        return collision
+    
+    def __event_reach_goal(self):
+        reach_goal = False
+        if self.e_global < 0.1 and self.alpha_global<0.9:
+            reach_goal = True    
+        return reach_goal
+    
+    def __event_maximum_steps(self):
+        maximum_steps = False
+        if self.t[self.id] >= self.tf:
+            maximum_steps = True
+        return maximum_steps
+# Detector de chegada ao objetivo  
     def step(self, action):
         done = False
         # Passagem de tempo
@@ -173,8 +169,11 @@ class robot_goal:
         self.sim.setJointTargetVelocity(self.rightMotor,vR)
         self.client.step()
         # Verificação de condição de término
-        if ts >= self.tf or (self.e_global < 0.1 and self.alpha_global<0.9):
+        collision     = self.__event_collision()
+        reach_goal    = self.__event_reach_goal()
+        maximum_steps = self.__event_maximum_steps()
+        if collision or reach_goal or maximum_steps:
             done = True  
         #Calculo de recompensa 
-        reward = self.__calcular_recompensa(observation, done)        
+        reward = self.__calcular_recompensa(collision, reach_goal)        
         return observation, reward, done
