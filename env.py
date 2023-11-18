@@ -37,7 +37,7 @@ class robot_goal:
         self.client.setStepping(True)
 #Controle do estado do Ambiente------------------------------------------
     def __setvariables(self):
-        num_point = 10000
+        num_point = 3600
         self.tf = num_point * self.dt
         self.t  = np.zeros(num_point+1)
         self.xp = np.zeros(num_point+1)
@@ -172,7 +172,7 @@ class robot_goal:
         collision     = self.__event_collision()
         reach_goal    = self.__event_reach_goal()
         maximum_steps = self.__event_maximum_steps()
-        if collision or reach_goal or maximum_steps:
+        if reach_goal or maximum_steps:
             done = True  
         #Calculo de recompensa 
         reward = self.__calcular_recompensa(collision, reach_goal)        
